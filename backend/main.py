@@ -19,7 +19,8 @@ app.add_middleware(
 
 client = genai.Client(api_key=os.getenv("GEMINI API KEY"))
 
-DB_PATH = "../data/movies.db"
+import os
+DB_PATH = os.path.join(os.path.dirname(__file__), "../data/movies.db")
 
 # ── MCP-style tools ──────────────────────────────────────────
 
