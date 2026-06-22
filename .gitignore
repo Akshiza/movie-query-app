@@ -1,6 +1,5 @@
 backend/venv/
 frontend/node_modules/
-data/movies.db
 __pycache__/
 *.pyc
 .env
