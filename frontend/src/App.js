@@ -1,19 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 
+const HISTORY_KEY = "movie_chat_history";
+
 export default function App() {
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages]);
 
   const ask = async () => {
     if (!question.trim() || loading) return;
     const q = question;
-    setMessages(prev => [...prev, { role: "user", text: q }]);
+    setMessages(prev => [...prev, { role: "user", text: q, time: new Date().toLocaleTimeString() }]);
     setQuestion("");
     setLoading(true);
 
@@ -24,11 +32,18 @@ export default function App() {
         body: JSON.stringify({ question: q }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "ai", text: data.answer }]);
+      setMessages(prev => [...prev, { role: "ai", text: data.answer, time: new Date().toLocaleTimeString() }]);
     } catch {
-      setMessages(prev => [...prev, { role: "ai", text: "Something went wrong. Is the backend running?" }]);
+      setMessages(prev => [...prev, { role: "ai", text: "Something went wrong. Is the backend running?", time: new Date().toLocaleTimeString() }]);
     }
     setLoading(false);
+  };
+
+  const clearHistory = () => {
+    if (window.confirm("Clear all chat history?")) {
+      setMessages([]);
+      localStorage.removeItem(HISTORY_KEY);
+    }
   };
 
   return (
@@ -43,25 +58,28 @@ export default function App() {
     }}>
 
       {/* Header */}
-      <div style={{ textAlign: "center", padding: "40px 0 24px" }}>
+      <div style={{ textAlign: "center", padding: "36px 0 20px", width: "100%", maxWidth: 720 }}>
         <div style={{
           display: "inline-block",
           backgroundColor: "#ff1493",
           borderRadius: "50%",
-          width: 56, height: 56,
-          lineHeight: "56px",
-          fontSize: 28,
-          marginBottom: 12
+          width: 52, height: 52,
+          lineHeight: "52px",
+          fontSize: 26,
+          marginBottom: 10
         }}>🎬</div>
         <h1 style={{
           color: "#ffffff",
-          fontSize: 28,
+          fontSize: 26,
           fontWeight: 700,
           margin: "0 0 6px",
           letterSpacing: "-0.5px"
-        }}>Movie Assistant</h1>
-        <p style={{ color: "#888", fontSize: 14, margin: 0 }}>
-          Ask anything about 9,837 movies in the database
+        }}>Netflix Movies and TV Shows Data Analysis</h1>
+        <p style={{ color: "#ff1493", fontSize: 14, margin: "0 0 4px", fontWeight: 500 }}>
+          Explore Netflix content including movies, ratings, popularity, genres.
+        </p>
+        <p style={{ color: "#555", fontSize: 12, margin: 0 }}>
+          9,837 titles in the database
         </p>
       </div>
 
@@ -69,7 +87,6 @@ export default function App() {
       <div style={{
         width: "100%",
         maxWidth: 720,
-        flex: 1,
         backgroundColor: "#111",
         border: "1px solid #222",
         borderRadius: 16,
@@ -89,11 +106,11 @@ export default function App() {
             color: "#444", fontSize: 14, textAlign: "center", padding: "60px 0"
           }}>
             <span style={{ fontSize: 36 }}>🍿</span>
-            <p style={{ margin: 0 }}>Ask a question about movies<br />to get started</p>
+            <p style={{ margin: 0 }}>Ask a question about Netflix content<br />to get started</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 }}>
               {[
                 "Top 5 highest rated movies?",
-                "Most popular Action movies?",
+                "Most popular genres?",
                 "Average rating by genre?",
               ].map(s => (
                 <button key={s} onClick={() => setQuestion(s)} style={{
@@ -113,29 +130,42 @@ export default function App() {
         {messages.map((m, i) => (
           <div key={i} style={{
             display: "flex",
-            justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+            flexDirection: "column",
+            alignItems: m.role === "user" ? "flex-end" : "flex-start",
           }}>
-            {m.role === "ai" && (
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%",
-                backgroundColor: "#ff1493",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, marginRight: 8, flexShrink: 0, alignSelf: "flex-end"
-              }}>✦</div>
-            )}
             <div style={{
-              backgroundColor: m.role === "user" ? "#ff1493" : "#1a1a1a",
-              color: "#ffffff",
-              padding: "10px 16px",
-              borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-              maxWidth: "78%",
-              fontSize: 14,
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-              border: m.role === "ai" ? "1px solid #222" : "none"
+              display: "flex",
+              alignItems: "flex-end",
+              gap: 8,
+              flexDirection: m.role === "user" ? "row-reverse" : "row"
             }}>
-              {m.text}
+              {m.role === "ai" && (
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  backgroundColor: "#ff1493",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, flexShrink: 0
+                }}>✦</div>
+              )}
+              <div style={{
+                backgroundColor: m.role === "user" ? "#ff1493" : "#1a1a1a",
+                color: "#ffffff",
+                padding: "10px 16px",
+                borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                maxWidth: "78%",
+                fontSize: 14,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+                border: m.role === "ai" ? "1px solid #222" : "none"
+              }}>
+                {m.text}
+              </div>
             </div>
+            <span style={{
+              fontSize: 11, color: "#444", marginTop: 4,
+              marginLeft: m.role === "ai" ? 36 : 0,
+              marginRight: m.role === "user" ? 0 : 0
+            }}>{m.time}</span>
           </div>
         ))}
 
@@ -182,7 +212,7 @@ export default function App() {
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={e => e.key === "Enter" && ask()}
-          placeholder="Ask about movies, genres, ratings, revenue..."
+          placeholder="Ask about Netflix movies, genres, ratings..."
           style={{
             flex: 1,
             backgroundColor: "transparent",
@@ -213,9 +243,23 @@ export default function App() {
         </button>
       </div>
 
-      <p style={{ color: "#333", fontSize: 12, marginTop: 12 }}>
-        Powered by Gemini · SQLite · FastAPI
-      </p>
+      {/* Footer */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center", marginTop: 12 }}>
+        <p style={{ color: "#333", fontSize: 12, margin: 0 }}>
+          Powered by Gemini · SQLite · FastAPI
+        </p>
+        {messages.length > 0 && (
+          <button onClick={clearHistory} style={{
+            backgroundColor: "transparent",
+            border: "1px solid #333",
+            color: "#555",
+            borderRadius: 6,
+            padding: "3px 10px",
+            fontSize: 12,
+            cursor: "pointer"
+          }}>Clear history</button>
+        )}
+      </div>
 
       <style>{`
         @keyframes bounce {
