@@ -95,7 +95,7 @@ async def ask(q: Question):
     max_iterations = 5
     for _ in range(max_iterations):
         response = client.models.generate_content(
-            model="gemini-1.5-flash-latest",
+            model="gemini-2.5-flash",
             contents=messages,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
