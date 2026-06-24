@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
 app = FastAPI()
 
 app.add_middleware(
@@ -15,13 +16,19 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False, 
+    allow_credentials=False,
 )
 
-client = genai.Client(api_key=os.getenv("GEMINI API KEY"))
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-import os
 DB_PATH = os.path.join(os.path.dirname(__file__), "../data/movies.db")
+
+# ── Fallback model list ───────────────────────────────────────
+MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-3.5-flash",
+]
 
 # ── MCP-style tools ──────────────────────────────────────────
 
@@ -83,19 +90,14 @@ Always call get_schema first, then query_database with valid SQLite SQL.
 After getting results, explain them clearly to the user.
 For genre filtering use LIKE e.g. WHERE genre LIKE '%Action%'."""
 
-# ── API endpoint ──────────────────────────────────────────────
+# ── Core ask function with a single model ────────────────────
 
-class Question(BaseModel):
-    question: str
+def run_with_model(model_name: str, question: str):
+    messages = [types.Content(role="user", parts=[types.Part(text=question)])]
 
-@app.post("/ask")
-async def ask(q: Question):
-    messages = [types.Content(role="user", parts=[types.Part(text=q.question)])]
-
-    max_iterations = 5
-    for _ in range(max_iterations):
+    for _ in range(5):
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=messages,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
@@ -142,4 +144,33 @@ async def ask(q: Question):
         if part.text:
             final_answer += part.text
 
-    return {"answer": final_answer}
+    return final_answer
+
+# ── API endpoint ──────────────────────────────────────────────
+
+class Question(BaseModel):
+    question: str
+
+@app.post("/ask")
+async def ask(q: Question):
+    last_error = None
+
+    for model_name in MODELS:
+        try:
+            print(f"Trying model: {model_name}")
+            answer = run_with_model(model_name, q.question)
+            print(f"Success with model: {model_name}")
+            return {"answer": answer, "model_used": model_name}
+        except Exception as e:
+            error_str = str(e)
+            print(f"Model {model_name} failed: {error_str}")
+            last_error = error_str
+
+            # Only retry on quota/overload errors
+            if "503" in error_str or "429" in error_str or "UNAVAILABLE" in error_str or "EXHAUSTED" in error_str:
+                continue
+            else:
+                # For other errors (404, auth) stop immediately
+                break
+
+    return {"answer": f"All models are currently unavailable. Please try again in a few minutes. Error: {last_error}"}
